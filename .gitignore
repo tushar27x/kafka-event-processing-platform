@@ -1,0 +1,34 @@
+# ===== Java / Maven =====
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+# ===== IDEs =====
+.idea/
+.vSCode/
+*.iml
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== Docker =====
+**/pgdata/
+**/grafana-data/
+**/redis-data/
+**/esdata/
+
+# ===== Environment files =====
+.env
+.env.*
+
+# ===== Logs =====
+logs/
+*.log
+
+# ===== Temporary =====
+*.tmp
+*.swp

@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  # Prometheus scraping itself
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Spring Boot consumer service
+  - job_name: "consumer-service"
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [ "consumer:8082" ]
+
+  - job_name: "producer-service"
+    metrics_path: "/actuator/prometheus"
+    static_configs:
+      - targets: ["producer:8081"]
+
+  - job_name: "kafka-exporter"
+    static_configs:
+      - targets: ["kafka-exporter:9308"]
