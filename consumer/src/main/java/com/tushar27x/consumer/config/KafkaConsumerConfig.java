@@ -21,6 +21,7 @@ public class KafkaConsumerConfig {
                 kafkaTemplate,
                 (record, ex) -> {
                     metrics.dlq();
+                    metrics.failed();
                     return new TopicPartition(
                             "user.activity.events.dlq",
                             record.partition()

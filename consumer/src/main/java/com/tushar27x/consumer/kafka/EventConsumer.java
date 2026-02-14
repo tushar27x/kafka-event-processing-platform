@@ -45,7 +45,6 @@ public class EventConsumer {
             eventMetrics.processed();
             log.info("Processing event: {}", event);
         } catch (RuntimeException ex) {
-            eventMetrics.failed();
             log.error("Event processing failed: {}", event, ex);
             throw ex;
         }
