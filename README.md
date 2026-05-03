@@ -1,167 +1,102 @@
-# Kafka Event Processing Platform with Observability
+# ⚡ Kafka Event Processing Platform
 
-A production-style **Kafka-based event processing system** built with Spring Boot, PostgreSQL, Redis, Prometheus, and Grafana.
+A **production-style event-driven system** built with Spring Boot, Kafka, PostgreSQL, Redis, Prometheus, and Grafana — demonstrating the patterns real engineering teams use to build reliable, observable data pipelines.
 
-The project demonstrates **event-driven architecture**, **reliable consumer design**, and **end-to-end observability**, including **Kafka consumer lag monitoring**.
-
----
-
-## ✨ Key Highlights
-
-- REST-based Kafka producer
-
-- Idempotent Kafka consumer with Redis
-
-- PostgreSQL-backed aggregations
-
-- Dead Letter Queue (DLQ) handling
-
-- Prometheus metrics for applications and Kafka
-
-- Grafana dashboards for real-time visibility
-
-- Kafka consumer lag monitoring using Kafka Exporter
-
+This isn't a tutorial project. It's a working implementation of the decisions that matter in production: idempotency, dead letter queues, consumer lag monitoring, and end-to-end observability from a single `docker compose up`.
 
 ---
 
-## 🏗 Architecture Overview
+## 🤔 The Problem This Demonstrates
+
+Most Kafka tutorials show you how to publish and consume a message. They skip the hard parts: what happens when a message is processed twice? What happens when a consumer crashes mid-batch? How do you know your consumer is falling behind before it becomes an incident?
+
+This platform answers all three.
+
+---
+
+## 🏗️ Architecture
 
 ```
-Producer Service (Spring Boot)
-        |
-        | REST API
-        v
-Kafka Topic (user.activity.events)
-        |
-        v
-Consumer Service (Spring Boot)
-        ├── Redis (deduplication / idempotency)
-        ├── PostgreSQL (aggregated storage)
-        └── DLQ (failed events)
-        |
-        v
-Prometheus (metrics scraping)
-        |
-        v
-Grafana (dashboards & alerts)
-
+REST Client
+     │
+     ▼
+Producer Service (Spring Boot :8081)
+     │  publishes to
+     ▼
+Kafka Topic: user.activity.events
+     │
+     ▼
+Consumer Service (Spring Boot :8082)
+     ├── Redis          ──→ Deduplication (idempotency key per eventId)
+     ├── PostgreSQL     ──→ Aggregated event storage
+     └── DLQ Topic      ──→ Failed events quarantined for inspection
+     │
+     ▼
+Prometheus (:9090)     ──→ Scrapes app + Kafka Exporter metrics
+     │
+     ▼
+Grafana (:3000)        ──→ Real-time dashboards + consumer lag tracking
 ```
 
 ---
 
-## 🧩 Services
+## ⚙️ Engineering Decisions Worth Noting
 
-|Service|Description|
-|---|---|
-|**Producer**|Accepts REST events and publishes to Kafka|
-|**Consumer**|Consumes Kafka events and performs processing|
-|**Kafka**|Event streaming backbone|
-|**Redis**|Idempotency & duplicate detection|
-|**PostgreSQL**|Aggregated event storage|
-|**Prometheus**|Metrics collection|
-|**Grafana**|Metrics visualization|
-|**Kafka Exporter**|Kafka consumer lag & broker metrics|
+### 🔁 Idempotent Consumer with Redis
+Every event carries an `eventId`. Before processing, the consumer checks Redis for that ID. If it exists, the event is a duplicate and is silently dropped. If not, processing proceeds and the ID is written to Redis atomically. This guarantees **exactly-once processing semantics** even when Kafka redelivers messages after a consumer crash.
 
----
+### 🪦 Dead Letter Queue (DLQ) Handling
+Events that fail processing after retries aren't lost — they're routed to a dedicated DLQ topic. This means failed events can be inspected, replayed, or alertted on without blocking the main consumer or losing data.
 
-## 📊 Observability & Metrics
+### 📈 Kafka Consumer Lag Monitoring
+Consumer lag is the leading indicator of pipeline health — a growing lag means your consumer is slower than your producer, and you'll have a problem before users notice. This is tracked via **Kafka Exporter** feeding Prometheus, with a PromQL query that computes lag per consumer group:
 
-### Application Metrics (Spring Boot)
-
-|Metric|Description|
-|---|---|
-|`events_processed_total`|Successfully processed events|
-|`events_failed_total`|Failed events|
-|`events_duplicate_total`|Duplicate events detected|
-|`events_dlq_total`|Events sent to DLQ|
-
-### Kafka Metrics
-
-- Consumer group lag
-
-- Topic partition offsets
-
-- Consumer group members
-
-- Broker availability
-
-
----
-
-## 📈 Kafka Consumer Lag (PromQL)
-
-Kafka lag is derived using **topic offsets vs committed consumer offsets**:
-
-```
-sum by (consumergroup) (   
-    kafka_topic_partition_current_offset   
-    -   
-    on (topic, partition)   
-    kafka_consumergroup_current_offset 
+```promql
+sum by (consumergroup) (
+    kafka_topic_partition_current_offset
+    -
+    on (topic, partition)
+    kafka_consumergroup_current_offset
 )
 ```
 
-This allows:
-
-- Detecting slow consumers
-
-- Visualizing backlog growth
-
-- Setting alert thresholds
-
+### 🐳 Full Observability Stack in Docker Compose
+The entire system — Kafka, Zookeeper, producer, consumer, Redis, PostgreSQL, Prometheus, Grafana, and Kafka Exporter — starts with one command. No manual config, no separate setup steps.
 
 ---
 
-## 📊 Grafana Dashboards
+## 📊 Metrics Tracked
 
-The Grafana dashboard includes:
-
-- Total events processed
-
-- Events processed per minute
-
-- Failed events per minute
-
-- DLQ events (rolling window)
-
-- Kafka consumer lag over time
+| Metric | What It Tells You |
+|--------|------------------|
+| `events_processed_total` | Throughput baseline |
+| `events_failed_total` | Error rate |
+| `events_duplicate_total` | How often idempotency is saving you |
+| `events_dlq_total` | Events needing manual intervention |
+| Kafka consumer lag | Whether the pipeline is keeping up |
 
 ---
 
-## 🚀 Running the Project
+## 🚀 Getting Started
 
-### Prerequisites
+**Prerequisites:** Docker, Docker Compose
 
-- Docker
-- Docker Compose
-
-### Start all services
-
-```
+```bash
 docker compose up -d
 ```
 
----
+That's it. All services start automatically.
 
-## 🔗 Service Endpoints
+| Service | URL |
+|---------|-----|
+| Producer API | http://localhost:8081 |
+| Consumer Metrics | http://localhost:8082/actuator/prometheus |
+| Prometheus | http://localhost:9090 |
+| Grafana | http://localhost:3000 (admin / admin) |
 
-|Service|URL|
-|---|---|
-|Producer API|[http://localhost:8081](http://localhost:8081)|
-|Consumer Metrics|[http://localhost:8082/actuator/prometheus](http://localhost:8082/actuator/prometheus)|
-|Prometheus|[http://localhost:9090](http://localhost:9090)|
-|Grafana|[http://localhost:3000](http://localhost:3000)|
+### Send a Test Event
 
-**Grafana default login**
-
-`username: admin password: admin`
-
----
-
-## 🧪 Sample Event
-
-```
+```bash
 curl -X POST http://localhost:8081/events \
   -H "Content-Type: application/json" \
   -d '{
@@ -172,17 +107,27 @@ curl -X POST http://localhost:8081/events \
   }'
 ```
 
+Send the same request twice — the second event will be detected and dropped by the idempotency layer. You'll see `events_duplicate_total` increment in Prometheus.
+
 ---
 
-## 📸 Screenshots
+## 🛠️ Tech Stack
 
-### Grafana Dashboard
+**Services:** Spring Boot (producer + consumer), Apache Kafka, Redis, PostgreSQL
+
+**Observability:** Prometheus, Grafana, Kafka Exporter, Spring Boot Actuator
+
+**Infrastructure:** Docker, Docker Compose
+
+---
+
+## 📉 Grafana Dashboard
+
+The pre-built dashboard (available under `docs/grafana/dashboard.json`) includes:
+
+- Events processed total and per-minute rate
+- Failed events and DLQ events (rolling windows)
+- Kafka consumer lag over time per consumer group
+
 ![Grafana Dashboard](docs/grafana-dashboard.png)
-
->Grafana dashboard JSON is available under `docs/grafana/dashboard.json`
-
-
-### Prometheus Targets
 ![Prometheus Targets](docs/prometheus-targets.png)
-
-
